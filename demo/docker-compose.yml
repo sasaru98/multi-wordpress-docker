@@ -1,0 +1,67 @@
+version: '3'
+
+services:
+
+  db:
+    container_name: $APP_NAME-db
+    image: mariadb:latest
+    restart: always
+    volumes:
+      - /srv/www/${VIRTUAL_HOST}/db_data:/var/lib/mysql
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: 1
+      MYSQL_DATABASE: $DB_NAME
+      MYSQL_USER: $DB_USER
+      MYSQL_PASSWORD: $DB_PASSWORD
+
+  wp:
+    container_name: $APP_NAME-wp
+    build: .
+    depends_on:
+      - db
+      - cp
+    restart: always
+    volumes:
+      - /srv/www/${VIRTUAL_HOST}/wp_content:/var/www/html/wp-content:rw
+      - ./app/themes:/var/www/html/wp-content/themes:rw
+      - ./app/plugins:/var/www/html/wp-content/plugins:rw
+      - ./app/uploads:/var/www/html/wp-content/uploads:rw
+    environment:
+      WORDPRESS_DB_HOST: $APP_NAME-db
+      WORDPRESS_DB_NAME: $DB_NAME
+      WORDPRESS_DB_USER: $DB_USER
+      WORDPRESS_DB_PASSWORD: $DB_PASSWORD
+      WORDPRESS_TABLE_PREFIX: $WP_TABLE_PREFIX
+      VIRTUAL_HOST: $VIRTUAL_HOST
+      VIRTUAL_PORT: 8000
+      LETSENCRYPT_HOST: $VIRTUAL_HOST
+      LETSENCRYPT_EMAIL: $LETSENCRYPT_EMAIL
+      LETSENCRYPT_TEST: 'true'
+
+  pma:
+    container_name: $APP_NAME-pma
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: $DB_USER
+      PMA_PASSWORD: $DB_PASSWORD
+      MYSQL_ROOT_PASSWORD: $DB_PASSWORD
+      UPLOAD_LIMIT: 3000000000
+    ports:
+      - 8080:80
+    links:
+      - db:db
+
+  cp:
+    build: composer
+    container_name: $APP_NAME-cp
+    volumes:
+      - /srv/www/${VIRTUAL_HOST}/wp_content:/app/wp-content
+    command: composer install
+
+networks:
+  default:
+    external:
+      name: nginx_proxy
+
